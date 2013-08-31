@@ -1,0 +1,24 @@
+#!/bin/bash
+DATABASE=$(mktemp)
+CHROMEDB=~/.config/chromium/Default/History
+ISLOCKED=$(sqlite3 ~/.config/chromium/Default/History "SELECT COUNT(*) from urls" 2>&1 1>/dev/null)
+EXPORT_FILE=~/.visited_urls
+
+if [ ! -f "${CHROMEDB}" ]
+then
+    echo "Chrome database \"$CHROMEDB\" is missing.  This may be normal behavior if the history is cleared."
+    exit 0
+fi
+
+if [ "$ISLOCKED" ] 
+then
+    echo "Locked, using a copy"
+    cp "${CHROMEDB}" "${DATABASE}.db"
+else
+    mv "${CHROMEDB}" "${DATABASE}.db"
+fi
+
+sqlite3 "${DATABASE}.db" "SELECT MAX(visits.visit_time) as visit_time, urls.url as url FROM urls INNER JOIN visits ON urls.id = visits.url GROUP BY urls.id" >> "${DATABASE}.urls"
+rm "${DATABASE}.db"
+cat "${DATABASE}.urls" | tee -a "${EXPORT_FILE}"
+rm "${DATABASE}.urls" 
