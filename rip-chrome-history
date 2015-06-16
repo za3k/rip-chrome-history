@@ -1,8 +1,34 @@
 #!/bin/bash
-DATABASE=$(mktemp)
 CHROMEDB=~/.config/chromium/Default/History
+
+while [[ $# > 0 ]]
+do
+key="$1"
+case $key in
+    -d|--delete)
+        DELETE=YES
+    ;;
+    -f|--file)
+        CHROMEDB="$2"
+        shift
+    ;;
+    -e|--export)
+        EXPORT_FILE="$2"
+        shift
+    ;;
+    *)
+        echo "Usage: rip-chrome-history [OPTIONS]" >/dev/stderr
+        echo "    -d|--delete        Delete the database during the rip" >/dev/stderr
+        echo "    -e|--export FILE   Export the ripped history into the file (appends)" >/dev/stderr
+        echo "    -f|--file DATABASE Location of the chrome history database [Default: ${CHROMEDB}]"
+        exit 1
+    ;;
+esac
+shift
+done
+
+DATABASE=$(mktemp)
 ISLOCKED=$(sqlite3 ~/.config/chromium/Default/History "SELECT COUNT(*) from urls" 2>&1 1>/dev/null)
-EXPORT_FILE=~/.visited_urls
 
 if [ ! -f "${CHROMEDB}" ]
 then
@@ -12,13 +38,22 @@ fi
 
 if [ "$ISLOCKED" ] 
 then
-    echo "Locked, using a copy"
+    echo "Locked, using a copy" >/dev/stderr
     cp "${CHROMEDB}" "${DATABASE}.db"
-else
+elif [ "$DELETE" ]
+then
+    echo "Clearing original database" >/dev/stderr
     mv "${CHROMEDB}" "${DATABASE}.db"
+else
+    cp "${CHROMEDB}" "${DATABASE}.db"
 fi
 
 sqlite3 "${DATABASE}.db" "SELECT MAX(visits.visit_time) as visit_time, urls.url as url FROM urls INNER JOIN visits ON urls.id = visits.url GROUP BY urls.id" >> "${DATABASE}.urls"
 rm "${DATABASE}.db"
-cat "${DATABASE}.urls" | tee -a "${EXPORT_FILE}"
+if [ "${EXPORT_FILE}" ];
+then
+    cat "${DATABASE}.urls" | tee -a "${EXPORT_FILE}"
+else
+    cat "${DATABASE}.urls"
+fi
 rm "${DATABASE}.urls" 
