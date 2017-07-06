@@ -1,6 +1,5 @@
 #!/bin/bash
-CHROMEDB=~/.config/chromium/Default/History
-
+PROFILE="Default"
 while [[ $# > 0 ]]
 do
 key="$1"
@@ -16,19 +15,35 @@ case $key in
         EXPORT_FILE="$2"
         shift
     ;;
+    -p|--profile)
+	PROFILE="$2"
+	shift
+    ;;
     *)
         echo "Usage: rip-chrome-history [OPTIONS]" >/dev/stderr
-        echo "    -d|--delete        Delete the database during the rip" >/dev/stderr
-        echo "    -e|--export FILE   Export the ripped history into the file (appends)" >/dev/stderr
-        echo "    -f|--file DATABASE Location of the chrome history database [Default: ${CHROMEDB}]"
+        echo "    -d|--delete          Delete the database during the rip" >/dev/stderr
+        echo "    -e|--export FILE     Export the ripped history into the file (appends)" >/dev/stderr
+        echo "    -f|--file DATABASE   Location of the chrome history database [Default: search based on profile]" >/dev/stderr
+        echo "    -p|--profile PROFILE The profile within chrome which is ripped [Default: ${PROFILE}]" >/dev/stderr
         exit 1
     ;;
 esac
 shift
 done
 
-DATABASE=$(mktemp)
-ISLOCKED=$(sqlite3 ~/.config/chromium/Default/History "SELECT COUNT(*) from urls" 2>&1 1>/dev/null)
+if [ -z "$CHROMEDB" ]
+then
+	if [ -e "${HOME}/.config/chromium/${PROFILE}/History" ]; then
+		CHROMEDB="${HOME}/.config/chromium/${PROFILE}/History"
+	elif [ -e "${HOME}/.config/google-chrome/${PROFILE}/History" ]; then
+		CHROMEDB="${HOME}/.config/google-chrome/${PROFILE}/History"
+	elif [ -e "${HOME}/Library/Application Support/Google/Chrome/${PROFILE}/History" ]; then
+		CHROMEDB="${HOME}/Library/Application Support/Google/Chrome/${PROFILE}/History"
+	fi
+fi
+
+DATABASE=$(mktemp 2>/dev/null || mktemp /tmp/TMP.XXXXX)
+ISLOCKED=$(sqlite3 "${CHROMEDB}" "SELECT COUNT(*) from urls" 2>&1 1>/dev/null)
 
 if [ ! -f "${CHROMEDB}" ]
 then
